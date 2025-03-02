@@ -1,0 +1,29 @@
+type Post {
+    id: ID!
+    text: String!
+    allowComments: Boolean!
+    comments(page: Int, limit: Int): [Comment!]!
+}
+
+type Comment {
+    id: ID!
+    text: String!
+    postId: ID!
+    parentId: ID
+    createdAt: String!
+    children(page: Int, limit: Int): [Comment!]!
+}
+
+type Query {
+    getPost(id: ID!, commentPage: Int, commentLimit: Int): Post
+    getPosts(page: Int, limit: Int): [Post!]!
+}
+
+type Mutation {
+    createPost(text: String!, allowComments: Boolean): Post!
+    createComment(postId: ID!, text: String!, parentId: ID): Comment!
+}
+
+type Subscription {
+    newComment(postId: ID!): Comment!
+}

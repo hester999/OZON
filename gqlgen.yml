@@ -1,0 +1,25 @@
+# Where are all the schema files located? globs are supported eg  src/**/*.graphqls
+schema:
+  - graph/*.graphqls
+
+# Where should the generated server code go?
+exec:
+  package: graph
+  layout: single-file
+  filename: graph/generated.go
+
+# Where should any generated models go?
+model:
+  filename: graph/model/models.go
+  package: model
+
+# Where should the resolver implementations go?
+resolver:
+  filename: internal/handlers/graphql.go
+  package: handlers
+
+# This section declares type mapping between the GraphQL and Go type systems
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
