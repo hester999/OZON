@@ -1,6 +1,4 @@
-// memory/inmemory_test.go
-
-package inmemory
+package post
 
 import (
 	"OZON/internal/domain"
@@ -9,6 +7,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"testing"
+	"time"
 )
 
 func TestInMemoryRepository(t *testing.T) {
@@ -56,6 +55,9 @@ func testGetPostsWithPagination(t *testing.T) {
 			Text:          fmt.Sprintf("Test Post %d", i),
 			AllowComments: true,
 		}
+
+		now := time.Now().Add(time.Duration(i) * time.Second)
+		posts[i].CreatedAt = &now
 		_, err := repo.CreatePost(context.Background(), posts[i], nil)
 		if err != nil {
 			t.Fatalf("failed to create post %d: %v", i, err)
@@ -70,7 +72,8 @@ func testGetPostsWithPagination(t *testing.T) {
 	if len(retrievedPosts) != 2 {
 		t.Errorf("expected 2 posts, got %d", len(retrievedPosts))
 	}
-	if retrievedPosts[0].Text != "Test Post 2" || retrievedPosts[1].Text != "Test Post 1" {
+
+	if retrievedPosts[0].Text != "Test Post 0" || retrievedPosts[1].Text != "Test Post 1" {
 		t.Errorf("unexpected post order: %+v", retrievedPosts)
 	}
 
@@ -81,11 +84,10 @@ func testGetPostsWithPagination(t *testing.T) {
 	if len(retrievedPosts) != 1 {
 		t.Errorf("expected 1 post, got %d", len(retrievedPosts))
 	}
-	if retrievedPosts[0].Text != "Test Post 0" {
+	if retrievedPosts[0].Text != "Test Post 2" {
 		t.Errorf("unexpected post: %+v", retrievedPosts[0])
 	}
 }
-
 func testCreateAndGetComment(t *testing.T) {
 	repo := memory.NewInMemoryRepository()
 

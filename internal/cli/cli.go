@@ -1,5 +1,3 @@
-// cli/cli.go
-
 package cli
 
 import (
@@ -10,7 +8,6 @@ import (
 	"log"
 )
 
-// Flag представляет флаги для выбора типа хранения
 type Flag struct {
 	storageType string
 }

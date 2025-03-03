@@ -18,6 +18,7 @@ type DB struct {
 func NewPostgresDB() (*DB, error) {
 	connString := os.Getenv("POSTGRES_CONNECTION_STRING")
 	if connString == "" {
+		//connString = "postgres://admin:123@localhost:5432/ozon?sslmode=disable"
 		connString = "postgres://admin:123@localhost:5432/ozon?sslmode=disable"
 	}
 	customLogger := logger.New(
@@ -29,6 +30,7 @@ func NewPostgresDB() (*DB, error) {
 		},
 	)
 	db, err := gorm.Open(postgres.Open(connString), &gorm.Config{
+		//Logger: logger.Default.LogMode(logger.Silent),
 		Logger: customLogger,
 	})
 	if err != nil {
@@ -39,5 +41,5 @@ func NewPostgresDB() (*DB, error) {
 		return nil, fmt.Errorf("failed to migrate database: %v", err)
 	}
 
-	return &DB{db.Debug()}, nil
+	return &DB{db}, nil
 }

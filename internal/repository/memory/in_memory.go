@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"sort"
 	"sync"
 	"time"
 )
@@ -55,6 +56,13 @@ func (r *InMemoryRepository) GetPosts(ctx context.Context, page, limit int32) ([
 		return true
 	})
 
+	sort.Slice(allPosts, func(i, j int) bool {
+		if allPosts[i].CreatedAt == nil || allPosts[j].CreatedAt == nil {
+			return allPosts[i].ID.String() < allPosts[j].ID.String()
+		}
+		return allPosts[i].CreatedAt.Before(*allPosts[j].CreatedAt)
+	})
+
 	offset := (page - 1) * limit
 	if offset < 0 {
 		offset = 0
@@ -70,7 +78,7 @@ func (r *InMemoryRepository) GetPosts(ctx context.Context, page, limit int32) ([
 	paginatedPosts := make([]*domain.Post, 0, limit)
 	for _, post := range allPosts[offset:end] {
 		postCopy := *post
-		postCopy.Comments = r.getCommentsForPost(post.ID, offset, limit)
+		postCopy.Comments = r.getCommentsForPost(post.ID, page, limit)
 		paginatedPosts = append(paginatedPosts, &postCopy)
 	}
 
@@ -83,6 +91,10 @@ func (r *InMemoryRepository) GetPosts(ctx context.Context, page, limit int32) ([
 func (r *InMemoryRepository) CreatePost(ctx context.Context, post *domain.Post, allowComments *bool) (*domain.Post, error) {
 	if post.ID == uuid.Nil {
 		post.ID = uuid.New()
+	}
+	if post.CreatedAt == nil {
+		now := time.Now()
+		post.CreatedAt = &now
 	}
 
 	allow := true
@@ -139,6 +151,13 @@ func (r *InMemoryRepository) CreateComment(ctx context.Context, comment *domain.
 }
 
 func (r *InMemoryRepository) GetCommentsForPost(ctx context.Context, postID uuid.UUID, page, limit int32) ([]*domain.Comment, error) {
+	if page <= 0 {
+		return nil, fmt.Errorf("page must be greater than 0")
+	}
+	if limit <= 0 {
+		return nil, fmt.Errorf("limit must be greater than 0")
+	}
+
 	return r.getCommentsForPost(postID, page, limit), nil
 }
 
@@ -164,6 +183,13 @@ func (r *InMemoryRepository) getCommentsForPost(postID uuid.UUID, page, limit in
 		return true
 	})
 
+	sort.Slice(rootComments, func(i, j int) bool {
+		if rootComments[i].CreatedAt == nil || rootComments[j].CreatedAt == nil {
+			return rootComments[i].ID.String() < rootComments[j].ID.String()
+		}
+		return rootComments[i].CreatedAt.Before(*rootComments[j].CreatedAt)
+	})
+
 	for i, root := range rootComments {
 		rootComments[i].Children = r.buildCommentTreeForChildren(root.ID)
 	}
@@ -183,6 +209,12 @@ func (r *InMemoryRepository) buildCommentTreeForChildren(parentID uuid.UUID) []*
 			}
 		}
 		return true
+	})
+	sort.Slice(children, func(i, j int) bool {
+		if children[i].CreatedAt == nil || children[j].CreatedAt == nil {
+			return children[i].ID.String() < children[j].ID.String()
+		}
+		return children[i].CreatedAt.Before(*children[j].CreatedAt)
 	})
 
 	return children

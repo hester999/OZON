@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"time"
 )
 
 type PostgresRepository struct {
@@ -45,6 +46,10 @@ func (p *PostgresRepository) CreatePost(ctx context.Context, post *domain.Post, 
 	if post.ID == uuid.Nil {
 		post.ID = uuid.New()
 	}
+	if post.CreatedAt == nil {
+		now := time.Now()
+		post.CreatedAt = &now
+	}
 
 	allow := true
 	if allowComments != nil {
@@ -63,23 +68,35 @@ func (p *PostgresRepository) GetPosts(ctx context.Context, page, limit int32) ([
 	var posts []*domain.Post
 	offset := (page - 1) * limit
 
+	if page <= 0 {
+		return nil, fmt.Errorf("page must be greater than 0")
+	}
+	if limit <= 0 {
+		return nil, fmt.Errorf("limit must be greater than or equal to 0")
+	}
+
 	var postIDs []uuid.UUID
-	if err := p.db.WithContext(ctx).Model(&domain.Post{}).Limit(int(limit)).Offset(int(offset)).Pluck("id", &postIDs).Error; err != nil {
+	if err := p.db.WithContext(ctx).Model(&domain.Post{}).Order("created_at ASC, id ASC").Limit(int(limit)).Offset(int(offset)).Pluck("id", &postIDs).Error; err != nil {
 		return nil, fmt.Errorf("failed to get post IDs: %v", err)
 	}
 
-	if err := p.db.WithContext(ctx).Limit(int(limit)).Offset(int(offset)).Preload("Comments", func(db *gorm.DB) *gorm.DB {
-		return db.Where("post_id IN (?)", postIDs).Order("created_at")
-	}).Find(&posts).Error; err != nil {
+	if err := p.db.WithContext(ctx).Where("id IN (?)", postIDs).Order("created_at ASC, id ASC").
+		Preload("Comments", func(db *gorm.DB) *gorm.DB {
+			return db.Where("post_id IN (?)", postIDs).Order("created_at ASC, id ASC")
+		}).Find(&posts).Error; err != nil {
 		return nil, fmt.Errorf("failed to get posts: %v", err)
 	}
 
 	for i := range posts {
 		posts[i].Comments = buildCommentTree(posts[i].Comments, posts[i].ID)
 	}
+	if len(posts) == 0 {
+		return nil, fmt.Errorf("posts not found")
+	}
 
 	return posts, nil
 }
+
 func (p *PostgresRepository) IsCommentsAllowed(ctx context.Context, postID uuid.UUID) (bool, error) {
 	var post domain.Post
 	if err := p.db.WithContext(ctx).Select("allow_comments").Where("id = ?", postID).First(&post).Error; err != nil {
@@ -93,6 +110,23 @@ func (p *PostgresRepository) IsCommentsAllowed(ctx context.Context, postID uuid.
 
 func (p *PostgresRepository) CreateComment(ctx context.Context, comment *domain.Comment) (*domain.Comment, error) {
 	comment.ID = uuid.New()
+	if comment.ParentID != nil {
+		var exists bool
+		if err := p.db.WithContext(ctx).Model(&domain.Comment{}).Select("count(*) > 0").Where("id = ?", comment.ParentID).Find(&exists).Error; err != nil {
+			return nil, fmt.Errorf("failed to check parent comment existence: %v", err)
+		}
+		if !exists {
+			return nil, fmt.Errorf("parent comment with ID %s does not exist", comment.ParentID)
+		}
+
+		var parentComment domain.Comment
+		if err := p.db.WithContext(ctx).Where("id = ?", comment.ParentID).First(&parentComment).Error; err != nil {
+			return nil, fmt.Errorf("failed to retrieve parent comment: %v", err)
+		}
+		if parentComment.PostID != comment.PostID {
+			return nil, fmt.Errorf("parent comment with ID %s belongs to a different post", comment.ParentID)
+		}
+	}
 
 	if err := p.db.WithContext(ctx).Create(comment).Error; err != nil {
 		return nil, fmt.Errorf("failed to create comment: %v", err)

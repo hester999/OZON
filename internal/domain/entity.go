@@ -10,6 +10,7 @@ type Post struct {
 	Text          string     `gorm:"type:text;not null"`
 	AllowComments bool       `gorm:"type:boolean;not null;default:true"`
 	Comments      []*Comment `gorm:"foreignKey:PostID"`
+	CreatedAt     *time.Time `gorm:"type:timestamp with time zone;not null"`
 }
 
 type Comment struct {
